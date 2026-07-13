@@ -1,6 +1,6 @@
 import express from 'express';
 import { supabase } from '../config/supabaseClient.js';
-
+import { requireAuth, clerkClient } from '@clerk/express';
 const router = express.Router();
 
 // פונקציית עזר להגנה מפני קריסת SQL במקרה של שימוש בגרש (אפוסטרוף) בטקסט
@@ -21,19 +21,54 @@ router.get('/', async(req, res) => {
 });
 
 // 2. CREATE POST - יצירת פוסט חדש (כולל שמירת האימייל של היוצר)
+// router.post('/create', async (req, res) => {
+//     console.log("📥 קיבלתי בקשה ליצירת פוסט חדש!", req.body); 
+//     try {
+//         const { title, description, img, author, email } = req.body;
+        
+//         const query = `
+//             INSERT INTO posts ("title", "description", "img", "author", "email")
+//             VALUES ('${safeString(title)}', '${safeString(description)}', '${safeString(img)}', '${safeString(author)}', '${safeString(email)}')
+//             RETURNING *
+//         `;
+        
+//         console.log("🏃 מריץ שאילתת יצירה ב-Supabase...");
+//         const { data, error } = await supabase.rpc('execute_sql', { query_text: query });
+        
+//         if (error) {
+//             console.error("🔴 שגיאה מה-RPC ביצירה:", error.message);
+//             return res.status(400).json({ error: error.message });
+//         }
+        
+//         const responseData = (data && data.length > 0) ? data[0] : { message: "Success but no data returned" };
+//         res.json(responseData);
+//     } catch (err) {
+//         console.error("🔥 שגיאה פנימית בשרת ביצירת פוסט:", err.message);
+//         res.status(500).json({ error: "Server crashed", details: err.message });
+//     }
+// });
+
+
+// 2. CREATE POST - יצירת פוסט חדש (גרסה מאובטחת השומרת על שמות המשתנים המקוריים)
 router.post('/create', async (req, res) => {
     console.log("📥 קיבלתי בקשה ליצירת פוסט חדש!", req.body); 
     try {
         const { title, description, img, author, email } = req.body;
         
-        const query = `
-            INSERT INTO posts ("title", "description", "img", "author", "email")
-            VALUES ('${safeString(title)}', '${safeString(description)}', '${safeString(img)}', '${safeString(author)}', '${safeString(email)}')
-            RETURNING *
-        `;
-        
         console.log("🏃 מריץ שאילתת יצירה ב-Supabase...");
-        const { data, error } = await supabase.rpc('execute_sql', { query_text: query });
+        
+        const { data, error } = await supabase
+            .from('posts')
+            .insert([
+                { 
+                    title: title, 
+                    description: description, 
+                    img: img, 
+                    author: author, 
+                    email: email 
+                }
+            ])
+            .select(); 
         
         if (error) {
             console.error("🔴 שגיאה מה-RPC ביצירה:", error.message);
@@ -47,6 +82,9 @@ router.post('/create', async (req, res) => {
         res.status(500).json({ error: "Server crashed", details: err.message });
     }
 });
+
+
+
 
 // 3. GET ONE POST BY ID - שליפת פוסט בודד לפי מזהה
 router.get('/:id', async (req, res) => {
